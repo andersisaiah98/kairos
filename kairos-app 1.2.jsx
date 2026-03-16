@@ -12,6 +12,7 @@ function jBook(b){ return b === "Song of Solomon" ? "Solomon's Song" : b; }
 
 const OT=["Genesis","Exodus","Leviticus","Numbers","Deuteronomy","Joshua","Judges","Ruth","1 Samuel","2 Samuel","1 Kings","2 Kings","1 Chronicles","2 Chronicles","Ezra","Nehemiah","Esther","Job","Psalms","Proverbs","Ecclesiastes","Song of Solomon","Isaiah","Jeremiah","Lamentations","Ezekiel","Daniel","Hosea","Joel","Amos","Obadiah","Jonah","Micah","Nahum","Habakkuk","Zephaniah","Haggai","Zechariah","Malachi"];
 const NTB=["Matthew","Mark","Luke","John","Acts","Romans","1 Corinthians","2 Corinthians","Galatians","Ephesians","Philippians","Colossians","1 Thessalonians","2 Thessalonians","1 Timothy","2 Timothy","Titus","Philemon","Hebrews","James","1 Peter","2 Peter","1 John","2 John","3 John","Jude","Revelation"];
+const BIBLE_BOOKS = [...OT, ...NTB];
 const BIBLE_CHAPS = {
   "Genesis":50,"Exodus":40,"Leviticus":27,"Numbers":36,"Deuteronomy":34,"Joshua":24,"Judges":21,"Ruth":4,"1 Samuel":31,"2 Samuel":24,"1 Kings":22,"2 Kings":25,"1 Chronicles":29,"2 Chronicles":36,"Ezra":10,"Nehemiah":13,"Esther":10,"Job":42,"Psalms":150,"Proverbs":31,"Ecclesiastes":12,"Song of Solomon":8,"Isaiah":66,"Jeremiah":52,"Lamentations":5,"Ezekiel":48,"Daniel":12,"Hosea":14,"Joel":3,"Amos":9,"Obadiah":1,"Jonah":4,"Micah":7,"Nahum":3,"Habakkuk":3,"Zephaniah":3,"Haggai":2,"Zechariah":14,"Malachi":4,
   "Matthew":28,"Mark":16,"Luke":24,"John":21,"Acts":28,"Romans":16,"1 Corinthians":16,"2 Corinthians":13,"Galatians":6,"Ephesians":6,"Philippians":4,"Colossians":4,"1 Thessalonians":5,"2 Thessalonians":3,"1 Timothy":6,"2 Timothy":4,"Titus":3,"Philemon":1,"Hebrews":13,"James":5,"1 Peter":5,"2 Peter":3,"1 John":5,"2 John":1,"3 John":1,"Jude":1,"Revelation":22
@@ -82,6 +83,7 @@ const WDAYS=["M","T","W","T","F","S","S"];
 const HL_C={gold:"rgba(201,168,76,0.25)",blue:"rgba(120,160,190,0.25)",green:"rgba(130,170,130,0.25)",rose:"rgba(180,130,130,0.25)"};
 
 // Map book names to available Scripture keys for Bible reader
+const BOOK_TO_SC = {};
 Object.values(SC).forEach(s => { if(!BOOK_TO_SC[s.book]) BOOK_TO_SC[s.book]=[]; BOOK_TO_SC[s.book].push(s.key); });
 
 function formatRelativeTime(iso) {
@@ -362,6 +364,58 @@ body{background:var(--bg);overflow-x:hidden}
 .kb-track{height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
 .kb-fill{height:100%;background:linear-gradient(90deg,rgba(201,168,76,0.7),var(--gold));border-radius:3px;transition:width .8s cubic-bezier(0.4,0,0.2,1)}
 .kb-sub{font-size:11px;color:var(--t3);margin-top:8px;font-style:italic}
+
+/* Quick Jump Isolated Styles */
+.qj-overlay {
+  position: fixed;
+  inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,10,12,0.9);
+  backdrop-filter: blur(12px);
+  animation: fi 0.3s ease;
+  padding: 24px;
+}
+.qj-modal {
+  background: linear-gradient(180deg, var(--bg2), #151518);
+  border-radius: 28px;
+  padding: 36px 24px;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 1px 1px rgba(255,255,255,0.05);
+  animation: popUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: center;
+  position: relative;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.qj-btn {
+  background: var(--bg3);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px;
+  padding: 14px 10px;
+  font-family: var(--san);
+  font-size: 13px;
+  color: var(--t2);
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.qj-btn.sel {
+  background: var(--gd);
+  border-color: var(--gold);
+  color: var(--gold);
+  font-weight: 700;
+}
 `;
 
 // ── COMPONENTS ──
@@ -386,6 +440,63 @@ const NotePopup = ({ notePopup, setNotePopup, initialDraft, saveNote, p }) => {
           <button className="np-cancel" onClick={() => setNotePopup(null)}>Cancel</button>
           <button className="np-save" onClick={() => saveNote(draft)}>Save</button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const QuickJumpModal = ({ isOpen, onClose, onSelect, books, currentBook, currentChapter }) => {
+  const [selB, setSelB] = useState(null);
+  useEffect(() => { if (isOpen) setSelB(currentBook); }, [isOpen, currentBook]);
+
+  if (!isOpen) return null;
+
+  const count = BIBLE_CHAPS[selB] || 1;
+
+  const renderBooks = () => (
+    <>
+      <div style={{ fontFamily: "var(--ser)", fontSize: 22, fontWeight: 600, color: "var(--t1)", marginBottom: 4, textAlign: 'center' }}>Quick Jump</div>
+      <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1.5, opacity: 0.7 }}>Select a book</div>
+      <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4, scrollbarWidth: 'none' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          {books.map(b => (
+            <button key={b} onClick={() => setSelB(b)} className={"qj-btn" + (b === selB ? " sel" : "")}>
+              {b}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderChapters = () => (
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <button onClick={() => setSelB(null)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', color: 'var(--gold)', borderRadius: 8, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px' }}>
+          <IcoChevL /> <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1 }}>Books</span>
+        </button>
+        <div style={{ fontFamily: "var(--ser)", fontSize: 18, fontWeight: 600, color: "var(--gold)" }}>{selB}</div>
+        <div style={{ width: 40 }} />
+      </div>
+      <div style={{ fontSize: 12, color: "var(--t3)", marginBottom: 16, textAlign: 'center', textTransform: 'uppercase', letterSpacing: 1.5, opacity: 0.7 }}>Select a chapter</div>
+      <div style={{ flex: 1, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, paddingRight: 4, scrollbarWidth: 'none' }}>
+        {Array.from({ length: count }).map((_, i) => {
+          const ch = i + 1;
+          const isCurr = selB === currentBook && ch === currentChapter;
+          return (
+            <button key={ch} onClick={() => onSelect(selB, ch)} className={"qj-btn" + (isCurr ? " sel" : "")} style={{ padding: "10px 0", aspectRatio: "1" }}>
+              {ch}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="qj-overlay" onClick={onClose}>
+      <div className="qj-modal" onClick={e => e.stopPropagation()}>
+        {selB ? renderChapters() : renderBooks()}
       </div>
     </div>
   );
@@ -590,6 +701,7 @@ export default function Kairos() {
   const [mins,setMins]=useState(5);
   const [mode,setMode]=useState("both");
   const [tab,setTab]=useState("home");
+  const [showQuickJump, setShowQuickJump] = useState(false);
 
   // Session state
   const [inSess,setInSess]=useState(false);
@@ -1233,7 +1345,7 @@ export default function Kairos() {
       <button className="nav-arrow right" onClick={() => { changeChap(1); if(scrollRef.current)scrollRef.current.scrollTop=0; }}><IcoChevR/></button>
       <div className="scr" ref={scrollRef} onScroll={handleScroll} style={{paddingTop: topBarH + 16}}>
         <div style={{marginBottom:48, marginTop:8, display:"flex", alignItems:"center", justifyContent:"center", position:"relative"}}>
-          <div style={{textAlign:"center"}}>
+          <div style={{textAlign:"center", cursor:"pointer"}} onClick={() => setShowQuickJump(true)}>
             <div style={{fontFamily:"var(--san)", fontSize:14, textTransform:"uppercase", letterSpacing:2, color:"var(--gold)", marginBottom:8}}>{passage.book}</div>
             <div style={{fontFamily:"var(--ser)", fontSize:56, fontWeight:600, color:"var(--t1)", lineHeight:1}}>{passage.ch}</div>
             <div style={{marginTop:8, display:"inline-flex", alignItems:"center", gap:6, background:"var(--bg3)", border:"1px solid rgba(255,255,255,0.06)", borderRadius:50, padding:"3px 10px"}}>
@@ -1855,6 +1967,19 @@ export default function Kairos() {
       )}
       {/* Modal overlays */}
       <NotePopup key={notePopup||"none"} notePopup={notePopup} setNotePopup={setNotePopup} initialDraft={noteDraft} saveNote={saveNote} p={readerPass}/>
+      <QuickJumpModal
+        isOpen={showQuickJump}
+        onClose={() => setShowQuickJump(false)}
+        onSelect={(b, ch) => {
+          setBiblePassage(b);
+          setBibleChapter(ch);
+          setShowQuickJump(false);
+          if (scrollRef.current) scrollRef.current.scrollTop = 0;
+        }}
+        books={inSess && sessJourneyId ? activeJourneys.find(j => j.id === sessJourneyId)?.books || BIBLE_BOOKS : BIBLE_BOOKS}
+        currentBook={biblePassage}
+        currentChapter={bibleChapter}
+      />
       
       {showJComplete && (
         <JourneyCompleteModal 
